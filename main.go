@@ -12,7 +12,7 @@ import (
 	"github.com/zhiqiangxu/matic-verify/pkg/helper"
 )
 
-const TendermintRPCUrl = "https://heimdall.api.matic.network"
+const TendermintRPCUrl = "http://tendermint.api.matic.network/"
 
 func VerifyCosmosHeader(myHeader *CosmosHeader, info *CosmosEpochSwitchInfo) error {
 	// now verify this header
