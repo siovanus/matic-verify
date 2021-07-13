@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 
 	tmbytes "github.com/tendermint/tendermint/libs/bytes"
+	"github.com/tendermint/tendermint/rpc/client"
 	httpClient "github.com/tendermint/tendermint/rpc/client/http"
 	"github.com/tendermint/tendermint/types"
 	"github.com/zhiqiangxu/matic-verify/pkg/helper"
@@ -73,6 +75,15 @@ type CosmosHeader struct {
 	Valsets []*types.Validator
 }
 
+var (
+	SpanPrefixKey = []byte{0x36} // prefix key to store span
+)
+
+// GetSpanKey appends prefix to start block
+func GetSpanKey(id uint64) []byte {
+	return append(SpanPrefixKey, []byte(strconv.FormatUint(id, 10))...)
+}
+
 func main() {
 	httpClient, _ := httpClient.New(TendermintRPCUrl, "/websocket")
 	// err := httpClient.Start()
@@ -106,6 +117,13 @@ func main() {
 			panic(err)
 		}
 
+		resp, err := httpClient.ABCIQueryWithOptions(context.Background(), "/store/bor/key", GetSpanKey(1), client.ABCIQueryOptions{Prove: true})
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println(resp)
+		return
 		info := &CosmosEpochSwitchInfo{
 			NextValidatorsHash: block0.NextValidatorsHash,
 			ChainID:            block0.ChainID,
