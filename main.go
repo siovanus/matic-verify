@@ -12,7 +12,7 @@ import (
 	"github.com/zhiqiangxu/matic-verify/pkg/helper"
 )
 
-const TendermintRPCUrl = "http://tendermint.api.matic.network/"
+const TendermintRPCUrl = "http://tendermint.api.matic.network:80"
 
 func VerifyCosmosHeader(myHeader *CosmosHeader, info *CosmosEpochSwitchInfo) error {
 	// now verify this header
@@ -75,10 +75,10 @@ type CosmosHeader struct {
 
 func main() {
 	httpClient, _ := httpClient.New(TendermintRPCUrl, "/websocket")
-	err := httpClient.Start()
-	if err != nil {
-		panic(fmt.Sprintf("Error connecting to server %v", err))
-	}
+	// err := httpClient.Start()
+	// if err != nil {
+	// 	panic(fmt.Sprintf("Error connecting to server %v", err))
+	// }
 
 	height := 100
 	for i := 0; i < 50; i++ {
