@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	tmbytes "github.com/tendermint/tendermint/libs/bytes"
-	"github.com/tendermint/tendermint/rpc/client"
 	httpClient "github.com/tendermint/tendermint/rpc/client/http"
 	"github.com/tendermint/tendermint/types"
 	"github.com/zhiqiangxu/matic-verify/pkg/helper"
@@ -117,13 +116,13 @@ func main() {
 			panic(err)
 		}
 
-		resp, err := httpClient.ABCIQueryWithOptions(context.Background(), "/store/bor/key", GetSpanKey(1), client.ABCIQueryOptions{Prove: true})
-		if err != nil {
-			panic(err)
-		}
+		// resp, err := httpClient.ABCIQueryWithOptions(context.Background(), "/store/bor/key", GetSpanKey(1), client.ABCIQueryOptions{Prove: true})
+		// if err != nil {
+		// 	panic(err)
+		// }
 
-		fmt.Println(resp)
-		return
+		// fmt.Println(resp)
+		// return
 		info := &CosmosEpochSwitchInfo{
 			NextValidatorsHash: block0.NextValidatorsHash,
 			ChainID:            block0.ChainID,
