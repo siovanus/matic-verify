@@ -18,10 +18,10 @@ const TendermintRPCUrl = "http://tendermint.api.matic.network:80"
 func VerifyCosmosHeader(myHeader *CosmosHeader, info *CosmosEpochSwitchInfo) error {
 	// now verify this header
 	valset := types.NewValidatorSet(myHeader.Valsets)
-	if !bytes.Equal(info.NextValidatorsHash, valset.Hash()) {
-		return fmt.Errorf("VerifyCosmosHeader, block validator is not right, next validator hash: %s, "+
-			"validator set hash: %s", info.NextValidatorsHash.String(), hex.EncodeToString(valset.Hash()))
-	}
+	// if !bytes.Equal(info.NextValidatorsHash, valset.Hash()) {
+	// 	return fmt.Errorf("VerifyCosmosHeader, block validator is not right, next validator hash: %s, "+
+	// 		"validator set hash: %s", info.NextValidatorsHash.String(), hex.EncodeToString(valset.Hash()))
+	// }
 	if !bytes.Equal(myHeader.Header.ValidatorsHash, valset.Hash()) {
 		return fmt.Errorf("VerifyCosmosHeader, block validator is not right!, header validator hash: %s, "+
 			"validator set hash: %s", myHeader.Header.ValidatorsHash.String(), hex.EncodeToString(valset.Hash()))
@@ -84,7 +84,7 @@ func GetSpanKey(id uint64) []byte {
 }
 
 func main() {
-	httpClient, _ := httpClient.New(TendermintRPCUrl, "/websocket")
+	client, _ := httpClient.New(TendermintRPCUrl, "/websocket")
 	// err := httpClient.Start()
 	// if err != nil {
 	// 	panic(fmt.Sprintf("Error connecting to server %v", err))
@@ -93,7 +93,7 @@ func main() {
 	height := 100
 	for i := 0; i < 50; i++ {
 		height0 := int64(height + i)
-		block0, err := helper.GetBlockWithClient(httpClient, height0)
+		block0, err := helper.GetBlockWithClient(client, height0)
 		if err != nil {
 			panic(err)
 		}
@@ -102,16 +102,17 @@ func main() {
 		perPage := 50
 
 		height1 := int64(height + i + 1)
-		block1, err := helper.GetBlockWithClient(httpClient, height1)
+		block1, err := helper.GetBlockWithClient(client, height1)
 		if err != nil {
 			panic(err)
 		}
 
-		vals1, err := httpClient.Validators(context.Background(), &height1, &page, &perPage)
+		vals1, err := client.Validators(context.Background(), &height1, &page, &perPage)
 		if err != nil {
 			panic(err)
 		}
-		commit1, err := httpClient.Commit(context.Background(), &height1)
+
+		commit1, err := client.Commit(context.Background(), &height1)
 		if err != nil {
 			panic(err)
 		}
