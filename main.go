@@ -2,15 +2,13 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
 	"fmt"
 	"strconv"
 
-	tmbytes "github.com/tendermint/tendermint/libs/bytes"
-	httpClient "github.com/tendermint/tendermint/rpc/client/http"
+	"github.com/tendermint/tendermint/libs/common"
+	"github.com/tendermint/tendermint/rpc/client"
 	"github.com/tendermint/tendermint/types"
-	"github.com/zhiqiangxu/matic-verify/pkg/helper"
 )
 
 const TendermintRPCUrl = "http://tendermint.api.matic.network:80"
@@ -18,17 +16,17 @@ const TendermintRPCUrl = "http://tendermint.api.matic.network:80"
 func VerifyCosmosHeader(myHeader *CosmosHeader, info *CosmosEpochSwitchInfo) error {
 	// now verify this header
 	valset := types.NewValidatorSet(myHeader.Valsets)
-	// if !bytes.Equal(info.NextValidatorsHash, valset.Hash()) {
-	// 	return fmt.Errorf("VerifyCosmosHeader, block validator is not right, next validator hash: %s, "+
-	// 		"validator set hash: %s", info.NextValidatorsHash.String(), hex.EncodeToString(valset.Hash()))
-	// }
+	if !bytes.Equal(info.NextValidatorsHash, valset.Hash()) {
+		return fmt.Errorf("VerifyCosmosHeader, block validator is not right, next validator hash: %s, "+
+			"validator set hash: %s", info.NextValidatorsHash.String(), hex.EncodeToString(valset.Hash()))
+	}
 	if !bytes.Equal(myHeader.Header.ValidatorsHash, valset.Hash()) {
 		return fmt.Errorf("VerifyCosmosHeader, block validator is not right!, header validator hash: %s, "+
 			"validator set hash: %s", myHeader.Header.ValidatorsHash.String(), hex.EncodeToString(valset.Hash()))
 	}
-	if myHeader.Commit.GetHeight() != myHeader.Header.Height {
+	if myHeader.Commit.Height() != myHeader.Header.Height {
 		return fmt.Errorf("VerifyCosmosHeader, commit height is not right! commit height: %d, "+
-			"header height: %d", myHeader.Commit.GetHeight(), myHeader.Header.Height)
+			"header height: %d", myHeader.Commit.Height(), myHeader.Header.Height)
 	}
 	if !bytes.Equal(myHeader.Commit.BlockID.Hash, myHeader.Header.Hash()) {
 		return fmt.Errorf("VerifyCosmosHeader, commit hash is not right!, commit block hash: %s,"+
@@ -37,22 +35,26 @@ func VerifyCosmosHeader(myHeader *CosmosHeader, info *CosmosEpochSwitchInfo) err
 	if err := myHeader.Commit.ValidateBasic(); err != nil {
 		return fmt.Errorf("VerifyCosmosHeader, commit is not right! err: %s", err.Error())
 	}
-	if valset.Size() != len(myHeader.Commit.Signatures) {
+	if valset.Size() != myHeader.Commit.Size() {
 		return fmt.Errorf("VerifyCosmosHeader, the size of precommits is not right!")
 	}
 	talliedVotingPower := int64(0)
-	for idx, commitSig := range myHeader.Commit.Signatures {
-		if commitSig.Absent() {
-			continue // OK, some precommits can be missing.
+	for _, commitSig := range myHeader.Commit.Precommits {
+		idx := commitSig.ValidatorIndex
+		_, val := valset.GetByIndex(idx)
+		if val == nil {
+			return fmt.Errorf("VerifyCosmosHeader, validator %d doesn't exist!", idx)
 		}
-		_, val := valset.GetByIndex(int32(idx))
+		if commitSig.Type != types.PrecommitType {
+			return fmt.Errorf("VerifyCosmosHeader, commitSig.Type(%d) wrong", commitSig.Type)
+		}
 		// Validate signature.
-		precommitSignBytes := myHeader.Commit.VoteSignBytes(info.ChainID, int32(idx))
-		if !val.PubKey.VerifySignature(precommitSignBytes, commitSig.Signature) {
+		precommitSignBytes := myHeader.Commit.VoteSignBytes(info.ChainID, idx)
+		if !val.PubKey.VerifyBytes(precommitSignBytes, commitSig.Signature) {
 			return fmt.Errorf("VerifyCosmosHeader, Invalid commit -- invalid signature: %v", commitSig)
 		}
 		// Good precommit!
-		if myHeader.Commit.BlockID.Equals(commitSig.BlockID(myHeader.Commit.BlockID)) {
+		if myHeader.Commit.BlockID.Equals(myHeader.Commit.BlockID) {
 			talliedVotingPower += val.VotingPower
 		}
 	}
@@ -64,7 +66,7 @@ func VerifyCosmosHeader(myHeader *CosmosHeader, info *CosmosEpochSwitchInfo) err
 }
 
 type CosmosEpochSwitchInfo struct {
-	NextValidatorsHash tmbytes.HexBytes
+	NextValidatorsHash common.HexBytes
 	ChainID            string
 }
 
@@ -84,7 +86,7 @@ func GetSpanKey(id uint64) []byte {
 }
 
 func main() {
-	client, _ := httpClient.New(TendermintRPCUrl, "/websocket")
+	client := client.NewHTTP(TendermintRPCUrl, "/websocket")
 	// err := httpClient.Start()
 	// if err != nil {
 	// 	panic(fmt.Sprintf("Error connecting to server %v", err))
@@ -93,26 +95,19 @@ func main() {
 	height := 100
 	for i := 0; i < 50; i++ {
 		height0 := int64(height + i)
-		block0, err := helper.GetBlockWithClient(client, height0)
+		commit0, err := client.Commit(&height0)
 		if err != nil {
 			panic(err)
 		}
-
-		page := 0
-		perPage := 50
 
 		height1 := int64(height + i + 1)
-		block1, err := helper.GetBlockWithClient(client, height1)
+
+		vals1, err := client.Validators(&height1)
 		if err != nil {
 			panic(err)
 		}
 
-		vals1, err := client.Validators(context.Background(), &height1, &page, &perPage)
-		if err != nil {
-			panic(err)
-		}
-
-		commit1, err := client.Commit(context.Background(), &height1)
+		commit1, err := client.Commit(&height1)
 		if err != nil {
 			panic(err)
 		}
@@ -125,11 +120,12 @@ func main() {
 		// fmt.Println(resp)
 		// return
 		info := &CosmosEpochSwitchInfo{
-			NextValidatorsHash: block0.NextValidatorsHash,
-			ChainID:            block0.ChainID,
+			NextValidatorsHash: commit0.NextValidatorsHash,
+			ChainID:            commit0.ChainID,
 		}
+
 		header := &CosmosHeader{
-			Header:  block1.Header,
+			Header:  *commit1.Header,
 			Commit:  commit1.Commit,
 			Valsets: vals1.Validators,
 		}
@@ -137,6 +133,8 @@ func main() {
 		err = VerifyCosmosHeader(header, info)
 		if err != nil {
 			panic(fmt.Sprintf("VerifyCosmosHeader:%v", err))
+		} else {
+			fmt.Println("VerifyCosmosHeader ok")
 		}
 	}
 
