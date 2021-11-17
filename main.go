@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -10,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	amino "github.com/tendermint/go-amino"
+	"github.com/tendermint/go-amino"
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	"github.com/tendermint/tendermint/libs/common"
@@ -19,9 +20,8 @@ import (
 	"github.com/tendermint/tendermint/types"
 )
 
-// const TendermintRPCUrl = "http://tendermint.api.matic.network:80"
-// const TendermintRPCUrl = "http://tendermint.api.matic.network:80"
-const TendermintRPCUrl = "http://124.156.210.161:80"
+const TendermintRPCUrl = "https://tendermint.api.matic.today"
+//const TendermintRPCUrl = "http://10.203.0.22:80"
 
 func VerifyCosmosHeader(myHeader *CosmosHeader, info *CosmosEpochSwitchInfo) error {
 	// now verify this header
@@ -112,14 +112,26 @@ func NewCDC() *amino.Codec {
 }
 
 func getHeimdallGenesis(height int64, change bool) {
-	client := rpcClient.NewHTTP(TendermintRPCUrl, "/websocket")
+	var tclient *rpcClient.HTTP
+	if strings.HasPrefix(TendermintRPCUrl, "http://") {
+		tclient = rpcClient.NewHTTP(TendermintRPCUrl, "/websocket")
+	} else {
+		cc := &http.Client{ // https
+			Transport: &http.Transport{
+				// Set to true to prevent GZIP-bomb DoS attacks
+				DisableCompression: true,
+				TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
+			},
+		}
+		tclient = rpcClient.NewHTTPWithClient(TendermintRPCUrl, "/websocket", cc)
+	}
 
-	vals, err := client.Validators(&height)
+	vals, err := tclient.Validators(&height)
 	if err != nil {
 		panic(err)
 	}
 
-	commit, err := client.Commit(&height)
+	commit, err := tclient.Commit(&height)
 	if err != nil {
 		panic(err)
 	}
@@ -150,7 +162,7 @@ func getHeimdallGenesis(height int64, change bool) {
 		return
 	}
 
-	changed := changeHeader(&genesisHeader, client)
+	changed := changeHeader(&genesisHeader, tclient)
 	changedHeaderBytes, err := cdc.MarshalBinaryBare(changed)
 	if err != nil {
 		panic(err)
@@ -264,66 +276,12 @@ func printBorExtra() {
 }
 
 func main() {
-
 	// getProofForSpan(2695)
 	// verifySpan()
-	// getHeimdallGenesis(5908043, false)
+	getHeimdallGenesis(8236761, false)
+	return
+
+	// verifySpan()
+	// getBorGenesis()
 	// return
-
-	// // verifySpan()
-	// // getBorGenesis()
-	// return
-
-	client := rpcClient.NewHTTP(TendermintRPCUrl, "/websocket")
-	status, err := client.Status()
-	if err != nil {
-		panic(fmt.Sprintf("client.Status error: %v", err))
-	}
-
-	fmt.Println("status", status)
-	// err := httpClient.Start()
-	// if err != nil {
-	// 	panic(fmt.Sprintf("Error connecting to server %v", err))
-	// }
-
-	height := 100
-	for i := 0; i < 50; i++ {
-		height0 := int64(height + i)
-		commit0, err := client.Commit(&height0)
-		if err != nil {
-			panic(err)
-		}
-
-		height1 := int64(height + i + 1)
-
-		vals1, err := client.Validators(&height1)
-		if err != nil {
-			panic(err)
-		}
-
-		commit1, err := client.Commit(&height1)
-		if err != nil {
-			panic(err)
-		}
-
-		return
-		info := &CosmosEpochSwitchInfo{
-			NextValidatorsHash: commit0.NextValidatorsHash,
-			ChainID:            commit0.ChainID,
-		}
-
-		header := &CosmosHeader{
-			Header:  *commit1.Header,
-			Commit:  commit1.Commit,
-			Valsets: vals1.Validators,
-		}
-
-		err = VerifyCosmosHeader(header, info)
-		if err != nil {
-			panic(fmt.Sprintf("VerifyCosmosHeader:%v", err))
-		} else {
-			fmt.Println("VerifyCosmosHeader ok")
-		}
-	}
-
 }
