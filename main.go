@@ -13,7 +13,7 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
-const BorRPCUrl = "https://rpc-mumbai.maticvigil.com"
+const BorRPCUrl = "http://43.133.170.42:8545"
 
 func jsonRequest(url string, data []byte) (result []byte, err error) {
 	resp, err := http.Post(url, "application/json", strings.NewReader(string(data)))
@@ -122,6 +122,7 @@ func getBorGenesis() {
 		Snapshot: snapshot,
 	}
 	raw, _ := json.Marshal(genesis)
+	fmt.Println(string(raw))
 	fmt.Println("bor genesis: ", hex.EncodeToString(raw))
 }
 
